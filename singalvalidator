@@ -1,0 +1,103 @@
+# signal_validator.py
+import pandas as pd
+import numpy as np
+
+def validate_signal(candles):
+    """
+    Returns:
+    - signals: buy/sell final, ai_confidence, SL/TP, exit
+    - indicator_values: all indicator values per candle
+    """
+
+    signals = {
+        "buy_signal_final": [],
+        "sell_signal_final": [],
+        "ai_confidence": [],
+        "stop_loss": [],
+        "take_profit": [],
+        "exit_signal": []
+    }
+
+    indicator_values = []
+
+    for i in range(len(candles)):
+        row = candles.iloc[i]
+
+        # ---- Indicators ----
+        supertrend = row.get('supertrend', 0)
+        macd_line = row.get('macd_line', 0)
+        macd_hist = row.get('macd_hist', 0)
+        rsi = row.get('rsi', 50)
+        bb_upper = row.get('bb_upper', 0)
+        bb_middle = row.get('bb_middle', 0)
+        bb_lower = row.get('bb_lower', 0)
+        atr = row.get('atr', 0)
+        slope = row.get('slope',0)
+        squeeze = row.get('squeeze',0)
+        candle_open = row['open']
+        candle_close = row['close']
+        candle_high = row['high']
+        candle_low = row['low']
+
+        # ---- 10 Conditions ----
+        cond = [False]*10
+        cond[0] = supertrend > 0  # supertrend green
+        cond[1] = candle_close > candle_open  # green candle
+        cond[2] = macd_hist > 0  # macd green
+        cond[3] = (candle_close > bb_middle) if cond[0] else False  # price cross mid band
+        cond[4] = macd_line > 0  # macd line cross zero
+        cond[5] = bb_upper > bb_upper*0.999  # upper band rising
+        cond[6] = supertrend > bb_middle  # supertrend cross mid band
+        cond[7] = rsi > 70  # price cross rsi70
+        cond[8] = squeeze > 0  # squeeze histogram
+        cond[9] = slope > 0  # slope/shape
+
+        buy_signal = all(cond)
+        sell_signal = False  # can add reverse conditions similarly
+
+        # ---- AI Confidence ----
+        ai_conf = sum(cond)/10
+
+        # ---- Stop Loss / Take Profit ----
+        risk_reward_ratio = 2
+        if buy_signal:
+            stop_loss = candle_close - atr
+            take_profit = candle_close + (candle_close - stop_loss)*risk_reward_ratio
+        else:
+            stop_loss = take_profit = 0
+
+        # ---- Exit Signal ----
+        exit_signal = False  # logic for SL/TP or opposite signal can be added
+
+        # ---- Append signals ----
+        signals['buy_signal_final'].append(buy_signal)
+        signals['sell_signal_final'].append(sell_signal)
+        signals['ai_confidence'].append(ai_conf)
+        signals['stop_loss'].append(stop_loss)
+        signals['take_profit'].append(take_profit)
+        signals['exit_signal'].append(exit_signal)
+
+        # ---- Append indicator values for dashboard ----
+        indicator_values.append({
+            "supertrend": supertrend,
+            "candle_open": candle_open,
+            "candle_high": candle_high,
+            "candle_low": candle_low,
+            "candle_close": candle_close,
+            "macd_line": macd_line,
+            "macd_hist": macd_hist,
+            "bb_upper": bb_upper,
+            "bb_middle": bb_middle,
+            "bb_lower": bb_lower,
+            "rsi": rsi,
+            "atr": atr,
+            "slope": slope,
+            "squeeze": squeeze,
+            "condition_checks": cond,
+            "ai_confidence": ai_conf,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "exit_signal": exit_signal
+        })
+
+    return signals, indicator_values
